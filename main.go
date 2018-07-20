@@ -83,6 +83,21 @@ func convKey(data interface{}, pkType string) (interface{}, error) {
 	return v, err
 }
 
+func rowsIndex(pkType string, idx string) (interface{}, error) {
+	var v interface{}
+	var err error
+	switch pkType {
+	case "int":
+		v, err = strconv.ParseInt(idx, 10, 64)
+	case "float":
+		v, err = strconv.ParseFloat(idx, 64)
+	default:
+		v = idx
+	}
+
+	return v, err
+}
+
 func createData(pkType string) reflect.Value {
 	var data reflect.Value
 	switch pkType {
@@ -124,10 +139,25 @@ func main() {
 	var pkey = app.Flag("pkey", "Primary key").String()
 	var pkeyType = app.Flag("pkey-type", "Primary key type [int, float, string]").Default("string").Enum("int", "float", "string")
 	var outFormat = app.Flag("output", "Output file format [json, yaml]").Default("json").Enum("json", "yaml")
+	var rowsIdx = app.Flag("rows-index", "Rows index [int=0, float=0.0, string=rows]").String()
 
 	app.Version("0.1.0")
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
+
+	if *rowsIdx == "" {
+		switch *pkeyType {
+		case "int":
+			var idx string = "0"
+			rowsIdx = &idx
+		case "float":
+			var idx string = "0.0"
+			rowsIdx = &idx
+		default:
+			var idx string = "rows"
+			rowsIdx = &idx
+		}
+	}
 
 	db, err := openDB(*dbuser, *dbpass, *dbhost, *dbname, *dbsock, *dbport)
 	if err != nil {
@@ -158,6 +188,7 @@ func main() {
 
 	data := createData(*pkeyType)
 
+	cnt := 0
 	for rows.Next() {
 		if err := rows.Scan(row...); err != nil {
 			log.Fatal(err)
@@ -179,7 +210,19 @@ func main() {
 		}
 
 		data.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(r))
+		cnt++
 	}
+	ri, err := rowsIndex(*pkeyType, *rowsIdx)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	riRows := map[string]interface{}{
+		"default_rows": cnt,
+		"count":        cnt,
+	}
+
+	data.SetMapIndex(reflect.ValueOf(ri), reflect.ValueOf(riRows))
 
 	b, err := Marshal(data.Interface(), *outFormat)
 	if err != nil {
