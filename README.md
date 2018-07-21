@@ -27,7 +27,7 @@ Flags:
 ### JSON
 
 ```console
-$ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id | jq .
+$ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id --output json | jq .
 {
   "1": {
     "id": 1,
@@ -39,46 +39,8 @@ $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id 
     "mime": "image/jpeg",
     "name": "1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png"
   },
-  "rows": {
-    "count": 2,
-    "default_rows": 2
-  }
-}
-
-$ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id --pkey-type int | jq .
-{
-  "0": {
-    "count": 2,
-    "default_rows": 2
-  },
-  "1": {
-    "id": 1,
-    "mime": "image/jpeg",
-    "name": "default.png"
-  },
-  "2": {
-    "id": 2,
-    "mime": "image/jpeg",
-    "name": "1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png"
-  }
-}
-
-$ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id --pkey-type int --rows-index 999999 | jq .
-{
-  "1": {
-    "id": 1,
-    "mime": "image/jpeg",
-    "name": "default.png"
-  },
-  "2": {
-    "id": 2,
-    "mime": "image/jpeg",
-    "name": "1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png"
-  },
-  "999999": {
-    "count": 2,
-    "default_rows": 2
-  }
+  "count": 2,
+  "default_rows": 2
 }
 ```
 
@@ -94,14 +56,10 @@ $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id 
   id: 2
   mime: image/jpeg
   name: 1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png
-rows:
-  count: 2
-  default_rows: 2
+count: 2
+default_rows: 2
 
 $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id --pkey-type int --output yaml
-0:
-  count: 2
-  default_rows: 2
 1:
   id: 1
   mime: image/jpeg
@@ -110,17 +68,6 @@ $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id 
   id: 2
   mime: image/jpeg
   name: 1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png
-
-$ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id --rows-index cnt_rows --output yaml
-"1":
-  id: 1
-  mime: image/jpeg
-  name: default.png
-"2":
-  id: 2
-  mime: image/jpeg
-  name: 1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png
-cnt_rows:
-  count: 2
-  default_rows: 2
+count: 2
+default_rows: 2
 ```
