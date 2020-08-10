@@ -10,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
@@ -96,26 +97,30 @@ func convKey(data interface{}, pkType, format string) (interface{}, error) {
 	return v, err
 }
 
-func rowsIndex(pkType, idx, format string) (interface{}, error) {
-	var v interface{}
-	var err error
-	if format == "json" {
-		return idx, nil
+func genCompositeKey(compositeKey string, delimiter string, row map[string]interface{}) (interface{}, error) {
+	keys := strings.Split(compositeKey, ",")
+	formats := make([]string, 0, len(keys))
+	for i, _ := range keys {
+		keys[i] = strings.TrimSpace(keys[i])
+		formats = append(formats, "%v")
 	}
 
-	switch pkType {
-	case "int":
-		v, err = strconv.ParseInt(idx, 10, 64)
-	case "float":
-		v, err = strconv.ParseFloat(idx, 64)
-	default:
-		v = idx
+	values := make([]interface{}, 0, len(keys))
+
+	for _, key := range keys {
+		val, ok := row[key]
+		if !ok {
+			return "", fmt.Errorf("key not found: %s", key)
+		}
+
+		values = append(values, val)
 	}
 
-	return v, err
+	format := strings.Join(formats, delimiter)
+	return fmt.Sprintf(format, values...), nil
 }
 
-func createData(pkType, format string) reflect.Value {
+func createData(format string) reflect.Value {
 	if format == "json" {
 		return reflect.ValueOf(make(map[string]interface{}))
 	}
@@ -150,11 +155,17 @@ func main() {
 	var query = app.Flag("query", "SQL").Required().String()
 	var pkey = app.Flag("pkey", "Primary key").String()
 	var pkeyType = app.Flag("pkey-type", "Primary key type [int, float, string]").Default("string").Enum("int", "float", "string")
+	var compositeKey = app.Flag("composite-key", "Composite key(comma separated)").String()
+	var delimiter = app.Flag("delimiter", "Delimiter").Short('d').Default("-").String()
 	var outFormat = app.Flag("output", "Output file format [json, yaml]").Default("json").Enum("json", "yaml")
 
-	app.Version("0.1.1")
+	app.Version("0.1.2")
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
+
+	if *compositeKey == "" && *pkey == "" {
+		log.Fatal(fmt.Errorf("--pkey or --composite-key are required"))
+	}
 
 	db, err := openDB(*dbuser, *dbpass, *dbhost, *dbname, *dbsock, *dbport)
 	if err != nil {
@@ -183,7 +194,11 @@ func main() {
 		row[i] = &values[i]
 	}
 
-	data := createData(*pkeyType, *outFormat)
+	if *compositeKey != "" {
+		*pkeyType = "string"
+	}
+
+	data := createData(*outFormat)
 
 	cnt := 0
 	for rows.Next() {
@@ -201,16 +216,23 @@ func main() {
 			r[cols[i]] = v
 		}
 
-		key, err := convKey(r[*pkey], *pkeyType, *outFormat)
-		if err != nil {
-			log.Fatal(err)
+		var key interface{}
+		if *compositeKey == "" {
+			key, err = convKey(r[*pkey], *pkeyType, *outFormat)
+			if err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			key, err = genCompositeKey(*compositeKey, *delimiter, r)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		data.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(r))
 		cnt++
 	}
 
-	data.SetMapIndex(reflect.ValueOf("default_rows"), reflect.ValueOf(cnt))
 	data.SetMapIndex(reflect.ValueOf("count"), reflect.ValueOf(cnt))
 
 	b, err := Marshal(data.Interface(), *outFormat)
