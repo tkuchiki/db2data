@@ -23,6 +23,7 @@ Flags:
                             Composite key(comma separated)
   -d, --delimiter="-"       Delimiter
       --output=json         Output file format [json, yaml]
+      --types=TYPES         Set types (column:type,...) type=[number, string, bool]
       --version             Show application version.
 ```
 
@@ -40,8 +41,7 @@ $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id 
     "id": 2,
     "mime": "image/jpeg",
     "name": "1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png"
-  },
-  "count": 2
+  }
 }
 ```
 
@@ -55,8 +55,7 @@ $ ./db2data --dbpass=password --dbport=13306 --dbhost=127.0.0.1 --dbname=test --
   "2-bob": {
     "id": 2,
     "name": "bob"
-  },
-  "count": 2
+  }
 }
 ```
 
@@ -72,7 +71,6 @@ $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id 
   id: 2
   mime: image/jpeg
   name: 1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png
-count: 2
 
 $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id = 1 OR id =2" --pkey id --pkey-type int --output yaml
 1:
@@ -83,5 +81,4 @@ $ ./db2data --dbname isubata --query "SELECT id, mime, name FROM image WHERE id 
   id: 2
   mime: image/jpeg
   name: 1ce0c4ff504f19f267e877a9e244d60ac0bf1a41.png
-count: 2
 ```

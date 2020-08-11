@@ -29,9 +29,42 @@ func openDB(dbuser, dbpass, dbhost, dbname, socket string, port int) (*sql.DB, e
 	return sql.Open("mysql", fmt.Sprintf("%s@%s/%s", userpass, conn, dbname))
 }
 
-func convVal(data []byte) (interface{}, error) {
+func convVal(data []byte, column string, columnTypes map[string]string) (interface{}, error) {
 	var v interface{}
 	var err error
+
+	val, ok := columnTypes[column]
+
+	if len(columnTypes) >= 0 && ok {
+		switch val {
+		case "number":
+			v, err = strconv.ParseInt(string(data), 10, 64)
+			if err == nil {
+				return v, nil
+			}
+
+			v, err = strconv.ParseFloat(string(data), 64)
+			if err == nil {
+				return v, nil
+			}
+
+			return 0, fmt.Errorf("Cannot convert to number, %s:%s = %s", column, val, string(data))
+		case "string":
+			return string(data), nil
+		case "bool":
+			v, err = strconv.ParseInt(string(data), 10, 64)
+			if err == nil {
+				if v.(int64) <= 0 {
+					return false, nil
+				} else if v.(int64) > 0 {
+					return true, nil
+				}
+			}
+
+			return strconv.ParseBool(string(data))
+		}
+	}
+
 	v, err = strconv.ParseInt(string(data), 10, 64)
 	if err == nil {
 		return v, nil
@@ -128,6 +161,20 @@ func createData(format string) reflect.Value {
 	return reflect.ValueOf(make(map[interface{}]interface{}))
 }
 
+func parseTypes(types string) (map[string]string, error) {
+	columnTypes := make(map[string]string)
+	for _, t := range strings.Split(types, ",") {
+		_t := strings.Split(t, ":")
+		if len(_t) == 1 {
+			return map[string]string{}, fmt.Errorf("Invalid types")
+		}
+
+		columnTypes[_t[0]] = _t[1]
+	}
+
+	return columnTypes, nil
+}
+
 func Marshal(data interface{}, format string) ([]byte, error) {
 	var b []byte
 	var err error
@@ -158,8 +205,9 @@ func main() {
 	var compositeKey = app.Flag("composite-key", "Composite key(comma separated)").String()
 	var delimiter = app.Flag("delimiter", "Delimiter").Short('d').Default("-").String()
 	var outFormat = app.Flag("output", "Output file format [json, yaml]").Default("json").Enum("json", "yaml")
+	var types = app.Flag("types", "Set types (column:type,...) type=[number, string, bool]").String()
 
-	app.Version("0.1.2")
+	app.Version("0.1.3")
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
@@ -200,6 +248,15 @@ func main() {
 
 	data := createData(*outFormat)
 
+	var columnTypes map[string]string
+
+	if *types != "" {
+		columnTypes, err = parseTypes(*types)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	cnt := 0
 	for rows.Next() {
 		if err := rows.Scan(row...); err != nil {
@@ -208,7 +265,7 @@ func main() {
 
 		r := make(map[string]interface{})
 		for i, val := range values {
-			v, err := convVal(val)
+			v, err := convVal(val, cols[i], columnTypes)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -232,8 +289,6 @@ func main() {
 		data.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(r))
 		cnt++
 	}
-
-	data.SetMapIndex(reflect.ValueOf("count"), reflect.ValueOf(cnt))
 
 	b, err := Marshal(data.Interface(), *outFormat)
 	if err != nil {
